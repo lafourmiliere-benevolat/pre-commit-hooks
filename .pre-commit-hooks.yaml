@@ -1,0 +1,8 @@
+- id: check-token-limit
+  name: Token limit
+  description: Rejects files over a token budget (bytes / 4) and explains how to split them.
+  entry: hooks/check-token-limit
+  language: unsupported_script
+  types: [text]
+  # One run, so the split instructions print once.
+  require_serial: true

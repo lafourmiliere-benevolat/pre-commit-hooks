@@ -1,0 +1,13 @@
+repos:
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1 # renovate: datasource=github-tags depName=shellcheck-py/shellcheck-py
+    hooks:
+      - id: shellcheck
+  - repo: local
+    hooks:
+      - id: test-check-token-limit
+        name: Test check-token-limit
+        entry: tests/check-token-limit.sh
+        language: system
+        pass_filenames: false
+        files: ^(hooks|tests)/

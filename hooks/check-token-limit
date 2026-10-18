@@ -1,0 +1,67 @@
+#!/bin/sh
+# Rejects files over a token budget, estimated as bytes / 4, so no file
+# outgrows what a coding agent can read whole.
+#
+# Usage: check-token-limit [--max-tokens=N] [--guide=PATH] FILE...
+#   --max-tokens  budget per file (default 5000)
+#   --guide       where the repo explains how to split its files
+set -eu
+
+max_tokens=5000
+guide=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --max-tokens=*) max_tokens=${1#*=} ;;
+    --guide=*) guide=${1#*=} ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+  shift
+done
+
+case "$max_tokens" in
+  '' | *[!0-9]*) echo "check-token-limit: --max-tokens must be a whole number" >&2; exit 2 ;;
+esac
+
+max_bytes=$((max_tokens * 4))
+failed=""
+
+for file in "$@"; do
+  # Measure the staged copy, so unstaged edits neither pass nor fail a commit.
+  # Files git does not track yet fall back to their size on disk.
+  bytes=$(git cat-file -s ":$file" 2>/dev/null || wc -c <"$file")
+  bytes=$((bytes + 0))
+  if [ "$bytes" -gt "$max_bytes" ]; then
+    failed="$failed  $file: ~$((bytes / 4)) tokens ($bytes bytes)
+"
+  fi
+done
+
+[ -z "$failed" ] && exit 0
+
+cat >&2 <<EOF
+Files over the $max_tokens-token limit (tokens = bytes / 4, max $max_bytes bytes):
+$failed
+Split each file so every part stays under $max_tokens tokens:
+
+  1. Find the seams: group the file's contents by responsibility
+     (one class, component, hook, concern, or topic per group).
+  2. Move each group into its own file next to the original, named
+     after what it holds.
+  3. Keep the original file as the entry point: it requires, imports,
+     or links the new parts, so callers do not change.
+  4. Move code as it is. Do not shorten names, delete comments, or
+     minify to get under the limit.
+  5. Run the repo's tests and lint, stage the new files, commit again.
+EOF
+if [ -n "$guide" ]; then
+  echo "
+How this repo splits each kind of file: $guide" >&2
+fi
+cat >&2 <<'EOF'
+
+Only lockfiles, generated code, or files kept whole on purpose may be
+excluded instead, in the hook's `exclude:` in .pre-commit-config.yaml.
+EOF
+exit 1
