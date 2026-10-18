@@ -11,12 +11,12 @@ Rejects staged files over a token budget, estimated as bytes / 4, and tells the 
   rev: <commit sha> # frozen: v1.0.0
   hooks:
     - id: check-token-limit
-      args: [--max-tokens=5000, --guide=AGENTS.md#file-size]
+      args: [--max-tokens=5000]
       exclude: (^|/)[^/]*\.lock$
 ```
 
 - `--max-tokens`: budget per file. Defaults to 5000.
-- `--guide`: where the repo explains how to split each kind of file. Printed with the error.
+- `--guide`: optional; where the repo explains how to split its files. Printed with the error.
 - `exclude`: files nobody writes by hand, like lockfiles or generated code. Each repo keeps its own.
 
 Pin a commit, not a tag: `prek update --freeze` writes the SHA and its tag.
