@@ -26,17 +26,37 @@ esac
 
 max_bytes=$((max_tokens * 4))
 failed=""
+nl='
+'
+
+# Measure the staged copy, so unstaged edits neither pass nor fail a commit.
+# One git call sizes every file; a call per file took seconds on a big repo.
+# It answers one line per path, in order. ":0:" names the staged copy, so a
+# path like "1:foo" isn't read as a stage number. Paths holding a newline are left
+# out, as they would span two lines. The "(" before each case pattern lets
+# macOS's bash 3.2 parse a case inside $(...).
+sizes=$(
+  for file in "$@"; do
+    case "$file" in (*"$nl"*) ;; (*) printf ':0:%s\n' "$file" ;; esac
+  done | git cat-file --batch-check='%(objectsize)' --buffer 2>/dev/null
+) || sizes=""
 
 for file in "$@"; do
-  # Measure the staged copy, so unstaged edits neither pass nor fail a commit.
-  # Files git does not track yet fall back to their size on disk.
-  bytes=$(git cat-file -s ":$file" 2>/dev/null || wc -c <"$file")
+  bytes=""
+  case "$file" in (*"$nl"*) ;; (*) IFS= read -r bytes <&3 || bytes="" ;; esac
+  case "$bytes" in
+    # Not sized above, or not in the index ("<path> missing"): ask git for
+    # this file alone, then fall back to its size on disk.
+    '' | *[!0-9]*) bytes=$(git cat-file -s ":0:$file" 2>/dev/null || wc -c <"$file") ;;
+  esac
   bytes=$((bytes + 0))
   if [ "$bytes" -gt "$max_bytes" ]; then
     failed="$failed  $file: ~$((bytes / 4)) tokens ($bytes bytes)
 "
   fi
-done
+done 3<<EOF
+$sizes
+EOF
 
 [ -z "$failed" ] && exit 0
 
